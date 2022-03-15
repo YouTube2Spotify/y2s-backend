@@ -28,6 +28,10 @@ type SongData struct {
 	SpotifyId string `json:"spotifyId"`
 }
 
+type Error struct {
+	Error string `json:"error"`
+}
+
 // Homepage Route
 func homePageHandler(w http.ResponseWriter, r *http.Request) {
 	setupResponse(&w, r)
@@ -47,17 +51,46 @@ func homePageHandler(w http.ResponseWriter, r *http.Request) {
 func likeSongHandler(w http.ResponseWriter, r *http.Request) {
 	setupResponse(&w, r)
 
+	if (*r).Method == "OPTIONS" {
+		return
+	}
+
 	reqBody, _ := ioutil.ReadAll(r.Body)
 	var data ClientData
 	json.Unmarshal(reqBody, &data)
 
 	songInfo := odesli(&data)
 	if songInfo.SpotifyId != "" {
+		likeSpotifyTrack(&data, &songInfo)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(songInfo)
 	} else {
-		fmt.Println("No data found")
+		var error Error
+		error.Error = "Failed to find song on Odesli"
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(error)
+		// fmt.Println("No data found")
 	}
+}
+
+// Add track to liked playlist in user's Spotify account
+func likeSpotifyTrack(clientData *ClientData, trackData *SongData) (statusCode int) {
+	client := &http.Client{}
+
+	req, err := http.NewRequest(http.MethodPut, "https://api.spotify.com/v1/me/tracks?ids="+trackData.SpotifyId, nil)
+	if err != nil {
+		panic(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+clientData.AccessToken)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		panic(err)
+	}
+
+	statusCode = resp.StatusCode
+	return
 }
 
 // Get song data from Odesli api
@@ -69,14 +102,17 @@ func odesli(data *ClientData) (odesliData SongData) {
 		"platform=youtube" + "&" +
 		"key=" + url.QueryEscape(odesliApiKey)
 
-	res, _ := http.Get(params)
+	res, err := http.Get(params)
+	if err != nil {
+		panic(err)
+	}
 	defer res.Body.Close()
 
 	body, _ := ioutil.ReadAll(res.Body)
 	var jsonData map[string]interface{}
-	err := json.Unmarshal([]byte(body), &jsonData)
-	if err != nil {
-		panic(err)
+	err2 := json.Unmarshal([]byte(body), &jsonData)
+	if err2 != nil {
+		panic(err2)
 	}
 
 	if (jsonData["linksByPlatform"].(map[string]interface{}))["spotify"] != nil {
@@ -101,7 +137,7 @@ func handleRequests(mux *http.ServeMux) {
 // Set up response headers
 func setupResponse(w *http.ResponseWriter, req *http.Request) {
 	(*w).Header().Set("Access-Control-Allow-Origin", "*")
-	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT")
 	(*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 }
 
