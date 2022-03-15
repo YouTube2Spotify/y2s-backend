@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/AudDMusic/audd-go"
 	"github.com/joho/godotenv"
 	"github.com/kkdai/youtube/v2"
 	fluentffmpeg "github.com/modfy/fluent-ffmpeg"
@@ -62,20 +63,33 @@ func likeSongHandler(w http.ResponseWriter, r *http.Request) {
 	var data ClientData
 	json.Unmarshal(reqBody, &data)
 
-	downloadVideo(&data)
-	convertVideo(&data)
-	// songInfo := odesli(&data)
+	songInfo := odesli(&data)
+	// var songInfo SongData
 
-	// if songInfo.SpotifyId != "" {
-	// 	likeSpotifyTrack(&data, &songInfo)
-	// 	w.Header().Set("Content-Type", "application/json")
-	// 	json.NewEncoder(w).Encode(songInfo)
-	// } else {
-	// 	var error Error
-	// 	error.Error = "Failed to find song on Odesli"
-	// 	w.Header().Set("Content-Type", "application/json")
-	// 	json.NewEncoder(w).Encode(error)
-	// }
+	if songInfo.SpotifyId != "" {
+		likeSpotifyTrack(&data, &songInfo)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(songInfo)
+	} else {
+		// Use AudD music recognition if music data not found with Odesli
+		downloadVideo(&data)
+		convertVideo(&data)
+		songInfo = matchAudio(&data)
+		deleteFile(&data, ".mp3")
+		deleteFile(&data, ".mp4")
+
+		if songInfo.SpotifyId != "" {
+			likeSpotifyTrack(&data, &songInfo)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(songInfo)
+			// fmt.Println("liking song from AuDd...")
+		} else {
+			var errorMessage Error
+			errorMessage.Error = "Failed to find song info"
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(errorMessage)
+		}
+	}
 }
 
 // Add track to liked playlist in user's Spotify account
@@ -100,11 +114,12 @@ func likeSpotifyTrack(clientData *ClientData, trackData *SongData) (statusCode i
 
 // Download client specified video
 func downloadVideo(clientData *ClientData) {
+	fmt.Println("downloading...")
 	videoId := strings.Split(clientData.VideoUrl, "?v=")[1]
-	videoIdSecondaryCheck := strings.Split(videoId, "&")[0]
+	videoId2 := strings.Split(videoId, "&")[0]
 	client := youtube.Client{}
 
-	video, err := client.GetVideo(videoIdSecondaryCheck)
+	video, err := client.GetVideo(videoId2)
 	if err != nil {
 		panic(err)
 	}
@@ -115,7 +130,7 @@ func downloadVideo(clientData *ClientData) {
 		panic(err)
 	}
 
-	file, err := os.Create(videoIdSecondaryCheck + ".mp4")
+	file, err := os.Create(videoId2 + ".mp4")
 	if err != nil {
 		panic(err)
 	}
@@ -127,17 +142,40 @@ func downloadVideo(clientData *ClientData) {
 	}
 }
 
+// Use AudD audio recognition to find song info from converted mp3
+func matchAudio(clientData *ClientData) (auddData SongData) {
+	fmt.Println("matching with AudD...")
+	videoId := strings.Split(clientData.VideoUrl, "?v=")[1]
+	videoId2 := strings.Split(videoId, "&")[0]
+
+	client := audd.NewClient(os.Getenv("AUDDIO_API_KEY"))
+	file, err := os.Open(videoId2 + ".mp3")
+	if err != nil {
+		panic(err)
+	}
+	result, err := client.Recognize(file, "spotify", nil)
+	if err != nil {
+		panic(err)
+	}
+
+	auddData.Title = result.Title
+	auddData.Artist = result.Artist
+	auddData.SpotifyId = result.Spotify.ID
+	return
+}
+
 // Convert mp4 downloaded with youtubeDL into mp3 to be used by AudD
 func convertVideo(clientData *ClientData) {
+	fmt.Println("converting...")
 	videoId := strings.Split(clientData.VideoUrl, "?v=")[1]
-	videoIdSecondaryCheck := strings.Split(videoId, "&")[0]
+	videoId2 := strings.Split(videoId, "&")[0]
 
 	// cmd := fluentffmpeg.NewCommand("")
-	err := fluentffmpeg.NewCommand("./ffmpeg").
-		InputPath(videoIdSecondaryCheck+".mp4").
+	err := fluentffmpeg.NewCommand(os.Getenv("FFMPEG_PATH")).
+		InputPath(videoId2+".mp4").
 		OutputOptions("-ss", "00:00:00", "-t", "00:00:24"). // starting time at beginning until 24 seconds in
 		OutputFormat("mp3").
-		OutputPath("./" + videoIdSecondaryCheck + ".mp3").
+		OutputPath("./" + videoId2 + ".mp3").
 		Run()
 	if err != nil {
 		panic(err)
@@ -146,6 +184,7 @@ func convertVideo(clientData *ClientData) {
 
 // Get song data from Odesli api
 func odesli(data *ClientData) (odesliData SongData) {
+	fmt.Println("matching with Odesli...")
 	query := strings.Split(data.VideoUrl, "&")[0]
 	odesliApiKey := os.Getenv("ODESLI_API_KEY")
 	params := "https://api.song.link/v1-alpha.1/links?" +
@@ -176,6 +215,16 @@ func odesli(data *ClientData) (odesliData SongData) {
 	}
 
 	return
+}
+
+func deleteFile(clientData *ClientData, fileType string) {
+	videoId := strings.Split(clientData.VideoUrl, "?v=")[1]
+	videoId2 := strings.Split(videoId, "&")[0]
+
+	err := os.Remove(videoId2 + fileType)
+	if err != nil {
+		panic(err)
+	}
 }
 
 // Request handler
