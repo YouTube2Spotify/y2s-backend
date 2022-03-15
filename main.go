@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/joho/godotenv"
+	"github.com/kkdai/youtube/v2"
 )
 
 type HomePage struct {
@@ -59,18 +61,19 @@ func likeSongHandler(w http.ResponseWriter, r *http.Request) {
 	var data ClientData
 	json.Unmarshal(reqBody, &data)
 
-	songInfo := odesli(&data)
-	if songInfo.SpotifyId != "" {
-		likeSpotifyTrack(&data, &songInfo)
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(songInfo)
-	} else {
-		var error Error
-		error.Error = "Failed to find song on Odesli"
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(error)
-		// fmt.Println("No data found")
-	}
+	downloadVideo(&data)
+	// songInfo := odesli(&data)
+
+	// if songInfo.SpotifyId != "" {
+	// 	likeSpotifyTrack(&data, &songInfo)
+	// 	w.Header().Set("Content-Type", "application/json")
+	// 	json.NewEncoder(w).Encode(songInfo)
+	// } else {
+	// 	var error Error
+	// 	error.Error = "Failed to find song on Odesli"
+	// 	w.Header().Set("Content-Type", "application/json")
+	// 	json.NewEncoder(w).Encode(error)
+	// }
 }
 
 // Add track to liked playlist in user's Spotify account
@@ -84,13 +87,42 @@ func likeSpotifyTrack(clientData *ClientData, trackData *SongData) (statusCode i
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+clientData.AccessToken)
 
-	resp, err := client.Do(req)
+	response, err := client.Do(req)
 	if err != nil {
 		panic(err)
 	}
 
-	statusCode = resp.StatusCode
+	statusCode = response.StatusCode
 	return
+}
+
+// Download client specified video
+func downloadVideo(clientData *ClientData) {
+	videoId := strings.Split(clientData.VideoUrl, "?v=")[1]
+	videoIdSecondaryCheck := strings.Split(videoId, "&")[0]
+	client := youtube.Client{}
+
+	video, err := client.GetVideo(videoIdSecondaryCheck)
+	if err != nil {
+		panic(err)
+	}
+
+	formats := video.Formats.WithAudioChannels()
+	stream, _, err := client.GetStream(video, &formats[0])
+	if err != nil {
+		panic(err)
+	}
+
+	file, err := os.Create(videoIdSecondaryCheck + ".mp4")
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	_, err = io.Copy(file, stream)
+	if err != nil {
+		panic(err)
+	}
 }
 
 // Get song data from Odesli api
