@@ -22,6 +22,12 @@ type ClientData struct {
 	AccessToken string
 }
 
+type SongData struct {
+	Title     string
+	Artist    string
+	SpotifyId string
+}
+
 // Homepage Route
 func homePageHandler(w http.ResponseWriter, r *http.Request) {
 	setupResponse(&w, r)
@@ -30,10 +36,6 @@ func homePageHandler(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-
-	// if (*r).Method == "OPTIONS" {
-	// 	return
-	// }
 
 	var data HomePage
 	data.Response = "Hello World!"
@@ -49,12 +51,17 @@ func likeSongHandler(w http.ResponseWriter, r *http.Request) {
 	var data ClientData
 	json.Unmarshal(reqBody, &data)
 
-	odesli(&data)
-
+	songInfo := odesli(&data)
+	if songInfo.SpotifyId != "" {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(songInfo)
+	} else {
+		fmt.Println("No data found")
+	}
 }
 
 // Get song data from Odesli api
-func odesli(data *ClientData) {
+func odesli(data *ClientData) (odesliData SongData) {
 	query := strings.Split(data.VideoUrl, "&")[0]
 	odesliApiKey := os.Getenv("ODESLI_API_KEY")
 	params := "https://api.song.link/v1-alpha.1/links?" +
@@ -66,18 +73,22 @@ func odesli(data *ClientData) {
 	defer res.Body.Close()
 
 	body, _ := ioutil.ReadAll(res.Body)
-	var tempData map[string]interface{}
-	err := json.Unmarshal([]byte(body), &tempData)
+	var jsonData map[string]interface{}
+	err := json.Unmarshal([]byte(body), &jsonData)
 	if err != nil {
 		panic(err)
 	}
 
-	if (tempData["linksByPlatform"].(map[string]interface{}))["spotify"] != nil {
-		uniqueId := ((tempData["linksByPlatform"].(map[string]interface{}))["spotify"].(map[string]interface{}))["entityUniqueId"]
-		fmt.Println(uniqueId)
-		// spotifyData := tempData["entityUniqueId"].(map[string]interface{})
+	if (jsonData["linksByPlatform"].(map[string]interface{}))["spotify"] != nil {
+		uniqueId := ((jsonData["linksByPlatform"].(map[string]interface{}))["spotify"].(map[string]interface{}))["entityUniqueId"].(string)
+
+		odesliData.Title = (jsonData["entitiesByUniqueId"].(map[string]interface{})[uniqueId].(map[string]interface{}))["title"].(string)
+		odesliData.Artist = (jsonData["entitiesByUniqueId"].(map[string]interface{})[uniqueId].(map[string]interface{}))["artistName"].(string)
+		odesliData.SpotifyId = (jsonData["entitiesByUniqueId"].(map[string]interface{})[uniqueId].(map[string]interface{}))["id"].(string)
+		return
 	}
 
+	return
 }
 
 // Request handler
@@ -93,14 +104,6 @@ func setupResponse(w *http.ResponseWriter, req *http.Request) {
 	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 	(*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 }
-
-// ENV setup
-// func getEnv(key string) {
-// 	err := godotenv.Load(".env")
-// 	if err != nil {
-// 		log.Fatal("Error loading .env file")
-// 	}
-// }
 
 func main() {
 	// Load env file
