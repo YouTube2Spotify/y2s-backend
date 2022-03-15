@@ -13,6 +13,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/kkdai/youtube/v2"
+	fluentffmpeg "github.com/modfy/fluent-ffmpeg"
 )
 
 type HomePage struct {
@@ -62,6 +63,7 @@ func likeSongHandler(w http.ResponseWriter, r *http.Request) {
 	json.Unmarshal(reqBody, &data)
 
 	downloadVideo(&data)
+	convertVideo(&data)
 	// songInfo := odesli(&data)
 
 	// if songInfo.SpotifyId != "" {
@@ -120,6 +122,23 @@ func downloadVideo(clientData *ClientData) {
 	defer file.Close()
 
 	_, err = io.Copy(file, stream)
+	if err != nil {
+		panic(err)
+	}
+}
+
+// Convert mp4 downloaded with youtubeDL into mp3 to be used by AudD
+func convertVideo(clientData *ClientData) {
+	videoId := strings.Split(clientData.VideoUrl, "?v=")[1]
+	videoIdSecondaryCheck := strings.Split(videoId, "&")[0]
+
+	// cmd := fluentffmpeg.NewCommand("")
+	err := fluentffmpeg.NewCommand("./ffmpeg").
+		InputPath(videoIdSecondaryCheck+".mp4").
+		OutputOptions("-ss", "00:00:00", "-t", "00:00:24"). // starting time at beginning until 24 seconds in
+		OutputFormat("mp3").
+		OutputPath("./" + videoIdSecondaryCheck + ".mp3").
+		Run()
 	if err != nil {
 		panic(err)
 	}
