@@ -17,21 +17,25 @@ import (
 	fluentffmpeg "github.com/modfy/fluent-ffmpeg"
 )
 
+// Homepage json
 type HomePage struct {
 	Response string
 }
 
+// Store data being posted by Chrome extension
 type ClientData struct {
 	VideoUrl    string
 	AccessToken string
 }
 
+// Store identified song information
 type SongData struct {
 	Title     string `json:"title"`
 	Artist    string `json:"artist"`
 	SpotifyId string `json:"spotifyId"`
 }
 
+// Used to create and return error json if no data is found
 type Error struct {
 	Error string `json:"error"`
 }
@@ -52,9 +56,11 @@ func homePageHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(data)
 }
 
+// Handle Chrome extension api request
 func likeSongHandler(w http.ResponseWriter, r *http.Request) {
 	setupResponse(&w, r)
 
+	// Handle CORS preflight request
 	if (*r).Method == "OPTIONS" {
 		return
 	}
@@ -63,18 +69,17 @@ func likeSongHandler(w http.ResponseWriter, r *http.Request) {
 	var data ClientData
 	json.Unmarshal(reqBody, &data)
 
-	songInfo := odesli(&data)
-	// var songInfo SongData
+	songInfo := odesli(&data) // Get song info from Odesli
 
-	if songInfo.SpotifyId != "" {
+	if songInfo.SpotifyId != "" { // Use data from Odesli if data was found
 		likeSpotifyTrack(&data, &songInfo)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(songInfo)
-	} else {
-		// Use AudD music recognition if music data not found with Odesli
-		downloadVideo(&data)
-		convertVideo(&data)
-		songInfo = matchAudio(&data)
+	} else { // Use AudD music recognition if music data not found with Odesli
+		fmt.Println("no match found with Odesli.")
+		downloadVideo(&data)         // download video using youtubedl
+		convertVideo(&data)          // convert video to mp3 format
+		songInfo = matchAudio(&data) // pass mp3 to audD api to perform music recognition
 		deleteFile(&data, ".mp3")
 		deleteFile(&data, ".mp4")
 
@@ -82,8 +87,8 @@ func likeSongHandler(w http.ResponseWriter, r *http.Request) {
 			likeSpotifyTrack(&data, &songInfo)
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(songInfo)
-			// fmt.Println("liking song from AuDd...")
-		} else {
+		} else { // return json with error message if song info could not be found
+			fmt.Println("no match found with Odesli or AudD")
 			var errorMessage Error
 			errorMessage.Error = "Failed to find song info"
 			w.Header().Set("Content-Type", "application/json")
@@ -170,7 +175,6 @@ func convertVideo(clientData *ClientData) {
 	videoId := strings.Split(clientData.VideoUrl, "?v=")[1]
 	videoId2 := strings.Split(videoId, "&")[0]
 
-	// cmd := fluentffmpeg.NewCommand("")
 	err := fluentffmpeg.NewCommand(os.Getenv("FFMPEG_PATH")).
 		InputPath(videoId2+".mp4").
 		OutputOptions("-ss", "00:00:00", "-t", "00:00:24"). // starting time at beginning until 24 seconds in
@@ -217,6 +221,7 @@ func odesli(data *ClientData) (odesliData SongData) {
 	return
 }
 
+// Used to delete leftover mp3 and mp4 files
 func deleteFile(clientData *ClientData, fileType string) {
 	videoId := strings.Split(clientData.VideoUrl, "?v=")[1]
 	videoId2 := strings.Split(videoId, "&")[0]
@@ -231,7 +236,7 @@ func deleteFile(clientData *ClientData, fileType string) {
 func handleRequests(mux *http.ServeMux) {
 	mux.HandleFunc("/", homePageHandler)
 	mux.HandleFunc("/api/like_song", likeSongHandler)
-	log.Fatal(http.ListenAndServe(":3000", mux))
+	log.Fatal(http.ListenAndServe(":"+os.Getenv("PORT"), mux))
 }
 
 // Set up response headers
@@ -250,6 +255,6 @@ func main() {
 
 	// Run the server
 	mux := http.NewServeMux()
-	fmt.Println("Server running at localhost:3000")
+	fmt.Println("Server running at localhost: " + os.Getenv("PORT"))
 	handleRequests(mux)
 }
