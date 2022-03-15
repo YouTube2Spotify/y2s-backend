@@ -23,9 +23,9 @@ type ClientData struct {
 }
 
 type SongData struct {
-	Title     string
-	Artist    string
-	SpotifyId string
+	Title     string `json:"title"`
+	Artist    string `json:"artist"`
+	SpotifyId string `json:"spotifyId"`
 }
 
 // Homepage Route
