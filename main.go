@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/AudDMusic/audd-go"
 	"github.com/joho/godotenv"
@@ -77,7 +78,33 @@ func likeSongHandler(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(songInfo)
 	} else { // Use AudD music recognition if music data not found with Odesli
 		fmt.Println("no match found with Odesli.")
-		downloadVideo(&data)         // download video using youtubedl
+
+		// begin download & time out if it still hasn't completed in 10 seconds
+		channel := make(chan interface{})
+		downloadStatus := true
+		go func() {
+			download := downloadVideo(&data)
+			channel <- download
+		}()
+		select {
+		case downloadResponse := <-channel:
+			fmt.Println(downloadResponse)
+		case <-time.After(10 * time.Second):
+			fmt.Println("download timed out")
+			downloadStatus = false
+		}
+
+		// exit function early if video failed to download
+		if !downloadStatus {
+			fmt.Println("failed to download video")
+			deleteFile(&data, ".mp4")
+			var errorMessage Error
+			errorMessage.Error = "Failed to find song info"
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(errorMessage)
+			return
+		}
+
 		convertVideo(&data)          // convert video to mp3 format
 		songInfo = matchAudio(&data) // pass mp3 to audD api to perform music recognition
 		deleteFile(&data, ".mp3")
@@ -114,11 +141,11 @@ func likeSpotifyTrack(clientData *ClientData, trackData *SongData) (statusCode i
 	}
 
 	statusCode = response.StatusCode
-	return
+	return statusCode
 }
 
 // Download client specified video
-func downloadVideo(clientData *ClientData) {
+func downloadVideo(clientData *ClientData) (status string) {
 	fmt.Println("downloading...")
 	videoId := strings.Split(clientData.VideoUrl, "?v=")[1]
 	videoId2 := strings.Split(videoId, "&")[0]
@@ -145,6 +172,9 @@ func downloadVideo(clientData *ClientData) {
 	if err != nil {
 		panic(err)
 	}
+
+	status = "download complete"
+	return status
 }
 
 // Use AudD audio recognition to find song info from converted mp3
@@ -166,7 +196,7 @@ func matchAudio(clientData *ClientData) (auddData SongData) {
 	auddData.Title = result.Title
 	auddData.Artist = result.Artist
 	auddData.SpotifyId = result.Spotify.ID
-	return
+	return auddData
 }
 
 // Convert mp4 downloaded with youtubeDL into mp3 to be used by AudD
@@ -215,10 +245,10 @@ func odesli(data *ClientData) (odesliData SongData) {
 		odesliData.Title = (jsonData["entitiesByUniqueId"].(map[string]interface{})[uniqueId].(map[string]interface{}))["title"].(string)
 		odesliData.Artist = (jsonData["entitiesByUniqueId"].(map[string]interface{})[uniqueId].(map[string]interface{}))["artistName"].(string)
 		odesliData.SpotifyId = (jsonData["entitiesByUniqueId"].(map[string]interface{})[uniqueId].(map[string]interface{}))["id"].(string)
-		return
+		return odesliData
 	}
 
-	return
+	return odesliData
 }
 
 // Used to delete leftover mp3 and mp4 files
