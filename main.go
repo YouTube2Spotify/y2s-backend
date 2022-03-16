@@ -66,6 +66,10 @@ func likeSongHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// delete files from previous api call
+	deleteFile("audio.mp3")
+	deleteFile("video.mp4")
+
 	reqBody, _ := ioutil.ReadAll(r.Body)
 	var data ClientData
 	json.Unmarshal(reqBody, &data)
@@ -97,7 +101,6 @@ func likeSongHandler(w http.ResponseWriter, r *http.Request) {
 		// exit function early if video failed to download
 		if !downloadStatus {
 			fmt.Println("failed to download video")
-			deleteFile(&data, ".mp4")
 			var errorMessage Error
 			errorMessage.Error = "Failed to find song info"
 			w.Header().Set("Content-Type", "application/json")
@@ -105,10 +108,8 @@ func likeSongHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		convertVideo(&data)          // convert video to mp3 format
+		convertVideo()               // convert video to mp3 format
 		songInfo = matchAudio(&data) // pass mp3 to audD api to perform music recognition
-		deleteFile(&data, ".mp3")
-		deleteFile(&data, ".mp4")
 
 		if songInfo.SpotifyId != "" {
 			likeSpotifyTrack(&data, &songInfo)
@@ -162,7 +163,7 @@ func downloadVideo(clientData *ClientData) (status string) {
 		panic(err)
 	}
 
-	file, err := os.Create(videoId2 + ".mp4")
+	file, err := os.Create("video.mp4")
 	if err != nil {
 		panic(err)
 	}
@@ -180,11 +181,11 @@ func downloadVideo(clientData *ClientData) (status string) {
 // Use AudD audio recognition to find song info from converted mp3
 func matchAudio(clientData *ClientData) (auddData SongData) {
 	fmt.Println("matching with AudD...")
-	videoId := strings.Split(clientData.VideoUrl, "?v=")[1]
-	videoId2 := strings.Split(videoId, "&")[0]
+	// videoId := strings.Split(clientData.VideoUrl, "?v=")[1]
+	// videoId2 := strings.Split(videoId, "&")[0]
 
 	client := audd.NewClient(os.Getenv("AUDDIO_API_KEY"))
-	file, err := os.Open(videoId2 + ".mp3")
+	file, err := os.Open("audio.mp3")
 	if err != nil {
 		panic(err)
 	}
@@ -200,16 +201,14 @@ func matchAudio(clientData *ClientData) (auddData SongData) {
 }
 
 // Convert mp4 downloaded with youtubeDL into mp3 to be used by AudD
-func convertVideo(clientData *ClientData) {
+func convertVideo() {
 	fmt.Println("converting...")
-	videoId := strings.Split(clientData.VideoUrl, "?v=")[1]
-	videoId2 := strings.Split(videoId, "&")[0]
 
 	err := fluentffmpeg.NewCommand(os.Getenv("FFMPEG_PATH")).
-		InputPath(videoId2+".mp4").
+		InputPath("video.mp4").
 		OutputOptions("-ss", "00:00:00", "-t", "00:00:24"). // starting time at beginning until 24 seconds in
 		OutputFormat("mp3").
-		OutputPath("./" + videoId2 + ".mp3").
+		OutputPath("./audio.mp3").
 		Run()
 	if err != nil {
 		panic(err)
@@ -252,13 +251,10 @@ func odesli(data *ClientData) (odesliData SongData) {
 }
 
 // Used to delete leftover mp3 and mp4 files
-func deleteFile(clientData *ClientData, fileType string) {
-	videoId := strings.Split(clientData.VideoUrl, "?v=")[1]
-	videoId2 := strings.Split(videoId, "&")[0]
-
-	err := os.Remove(videoId2 + fileType)
-	if err != nil {
-		panic(err)
+func deleteFile(fileName string) {
+	err := os.Remove(fileName)
+	if err != nil { // if file doesn't exist, do nothing
+		return
 	}
 }
 
