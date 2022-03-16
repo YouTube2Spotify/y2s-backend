@@ -4,7 +4,9 @@
   <a href="https://goreportcard.com/report/github.com/YouTube2Spotify/y2s-backend"><img src="https://goreportcard.com/badge/github.com/YouTube2Spotify/y2s-backend" /></a>
 
   <i>YouTube 2 Spotify saves the currently playing YouTube song into your Spotify library.</i>
-  <br/>
+  
+  <p>A complete rewrite of YouTube 2 Spotify's original Node.js backend into Golang for performance improvements.</p>
+
   <p>This is the backend that powers YouTube 2 Spotify's functionality. Using the URL and Spotify access token provided by the Chrome extension, this program will download the video, convert it to an audio file, then use Odesli or AudD's API to identify the track. The track will then be added to the user's Spotify liked playlist.</p>
 
   <p>Get the extension on the <a href="https://chrome.google.com/webstore/detail/youtube-2-spotify/nkgehjjhpbiljbikkfpnhjmlobabehcj">Chrome Store</a> or <a href="https://github.com/YouTube2Spotify/y2s/releases">GitHub</a></p>
@@ -15,6 +17,8 @@
 ## Overview
 - [Running Backend Locally](#running-the-backend-locally)
 - [Building](#building)
+- [Credits](#powered-by)
+- [License](#license)
 
 # Running the backend locally
 
@@ -50,7 +54,7 @@
     FFMPEG_PATH=path_to_ffmpeg
     ```
 
-1. Run the application!
+1. Run the application
 
     ```
     $ go run main.go
@@ -66,8 +70,9 @@ $ go build -o main
 
 - [AudD.io](https://audd.io/)
 - [Odesli](https://odesli.co/)
-- [PyTube](https://github.com/pytube/pytube)
 - [Spotify](https://developer.spotify.com/)
+- [youtube-dl](https://youtube-dl.org/)
+- [FFmpeg](https://ffmpeg.org/)
 
 ### License
 
