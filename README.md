@@ -25,7 +25,7 @@
    $ touch .env
    ```
 
-1. Install ffmpeg (for converting pytube vid files to mp3s for AudD.io's API)
+1. Install ffmpeg (for converting downloaded video files to mp3s for AudD.io's API)
 
    - For MacOS: `brew install ffmpeg`
 
@@ -42,15 +42,19 @@
 
 1. Set environment variables
 
-   - Open and edit `.env`
-     - `PORT=` Whichever port you want the app to run on
-     - `AUDDIO_API_KEY=` your AudD api key
-     - `ODESLI_API_KEY=` your Odesli api key, if you have one
-     - `FFMPEG_PATH=` path to ffmpeg on your machine
+   Open and edit `.env`
+    ```
+    PORT=port
+    AUDDIO_API_KEY=your_audD_api_key
+    ODESLI_API_KEY=your_odesli_api_key
+    FFMPEG_PATH=path_to_ffmpeg
+    ```
 
 1. Run the application!
 
-   - `go run main.go`
+    ```
+    $ go run main.go
+    ```
 
 # Building
 
