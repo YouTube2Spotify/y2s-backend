@@ -2,13 +2,13 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -81,7 +81,7 @@ func likeSongHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(songInfo)
 	} else { // Use AudD music recognition if music data not found with Odesli
-		fmt.Println("no match found with Odesli.")
+		log.Println("no match found with Odesli.")
 
 		// begin download & time out if it still hasn't completed in 10 seconds
 		channel := make(chan interface{})
@@ -92,15 +92,15 @@ func likeSongHandler(w http.ResponseWriter, r *http.Request) {
 		}()
 		select {
 		case downloadResponse := <-channel:
-			fmt.Println(downloadResponse)
+			log.Println(downloadResponse)
 		case <-time.After(10 * time.Second):
-			fmt.Println("download timed out")
+			log.Println("download timed out")
 			downloadStatus = false
 		}
 
 		// exit function early if video failed to download
 		if !downloadStatus {
-			fmt.Println("failed to download video")
+			log.Println("failed to download video")
 			var errorMessage Error
 			errorMessage.Error = "Failed to find song info"
 			w.Header().Set("Content-Type", "application/json")
@@ -116,7 +116,7 @@ func likeSongHandler(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(songInfo)
 		} else { // return json with error message if song info could not be found
-			fmt.Println("no match found with Odesli or AudD")
+			log.Println("no match found with Odesli or AudD")
 			var errorMessage Error
 			errorMessage.Error = "Failed to find song info"
 			w.Header().Set("Content-Type", "application/json")
@@ -147,7 +147,7 @@ func likeSpotifyTrack(clientData *ClientData, trackData *SongData) (statusCode i
 
 // Download client specified video
 func downloadVideo(clientData *ClientData) (status string) {
-	fmt.Println("downloading...")
+	log.Println("downloading...")
 	videoId := strings.Split(clientData.VideoUrl, "?v=")[1]
 	videoId2 := strings.Split(videoId, "&")[0]
 	client := youtube.Client{}
@@ -180,7 +180,7 @@ func downloadVideo(clientData *ClientData) (status string) {
 
 // Use AudD audio recognition to find song info from converted mp3
 func matchAudio(clientData *ClientData) (auddData SongData) {
-	fmt.Println("matching with AudD...")
+	log.Println("matching with AudD...")
 
 	client := audd.NewClient(os.Getenv("AUDDIO_API_KEY"))
 	file, err := os.Open("audio.mp3")
@@ -200,7 +200,7 @@ func matchAudio(clientData *ClientData) (auddData SongData) {
 
 // Convert mp4 downloaded with youtubeDL into mp3 to be used by AudD
 func convertVideo() {
-	fmt.Println("converting...")
+	log.Println("converting...")
 
 	err := fluentffmpeg.NewCommand(os.Getenv("FFMPEG_PATH")).
 		InputPath("video.mp4").
@@ -215,7 +215,7 @@ func convertVideo() {
 
 // Get song data from Odesli api
 func odesli(data *ClientData) (odesliData SongData) {
-	fmt.Println("matching with Odesli...")
+	log.Println("matching with Odesli...")
 	query := strings.Split(data.VideoUrl, "&")[0]
 	odesliApiKey := os.Getenv("ODESLI_API_KEY")
 	params := "https://api.song.link/v1-alpha.1/links?" +
@@ -228,6 +228,11 @@ func odesli(data *ClientData) (odesliData SongData) {
 		log.Panic(err)
 	}
 	defer res.Body.Close()
+
+	if res.StatusCode != 200 {
+		log.Println("Odesli error code: " + strconv.Itoa(res.StatusCode))
+		return
+	}
 
 	body, _ := ioutil.ReadAll(res.Body)
 	var jsonData map[string]interface{}
@@ -276,6 +281,6 @@ func main() {
 
 	// Run the server
 	mux := http.NewServeMux()
-	fmt.Println("Server running at localhost: " + os.Getenv("PORT"))
+	log.Println("Server running at localhost: " + os.Getenv("PORT"))
 	handleRequests(mux)
 }
