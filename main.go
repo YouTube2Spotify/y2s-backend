@@ -71,13 +71,13 @@ func likeSongHandler(w http.ResponseWriter, r *http.Request) {
 	deleteFile("video.mp4")
 
 	reqBody, _ := ioutil.ReadAll(r.Body)
-	var data ClientData
-	json.Unmarshal(reqBody, &data)
+	var chromeExtensionData ClientData
+	json.Unmarshal(reqBody, &chromeExtensionData)
 
-	songInfo := odesli(&data) // Get song info from Odesli
+	songInfo := odesli(&chromeExtensionData) // Get song info from Odesli
 
 	if songInfo.SpotifyId != "" { // Use data from Odesli if data was found
-		likeSpotifyTrack(&data, &songInfo)
+		likeSpotifyTrack(&chromeExtensionData, &songInfo)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(songInfo)
 	} else { // Use AudD music recognition if music data not found with Odesli
@@ -87,7 +87,7 @@ func likeSongHandler(w http.ResponseWriter, r *http.Request) {
 		channel := make(chan interface{})
 		downloadStatus := true
 		go func() {
-			download := downloadVideo(&data)
+			download := downloadVideo(&chromeExtensionData)
 			channel <- download
 		}()
 		select {
@@ -108,11 +108,11 @@ func likeSongHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		convertVideo()               // convert video to mp3 format
-		songInfo = matchAudio(&data) // pass mp3 to audD api to perform music recognition
+		convertVideo()                              // convert video to mp3 format
+		songInfo = matchAudio(&chromeExtensionData) // pass mp3 to audD api to perform music recognition
 
 		if songInfo.SpotifyId != "" {
-			likeSpotifyTrack(&data, &songInfo)
+			likeSpotifyTrack(&chromeExtensionData, &songInfo)
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(songInfo)
 		} else { // return json with error message if song info could not be found
