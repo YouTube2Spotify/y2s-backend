@@ -194,7 +194,15 @@ func matchAudio(clientData *ClientData) (auddData SongData) {
 
 	auddData.Title = result.Title
 	auddData.Artist = result.Artist
-	auddData.SpotifyId = result.Spotify.ID
+
+	// check if Spotify data exists. appears to sometimes not exist
+	switch spotifyId := result.Spotify; spotifyId {
+	case nil:
+		auddData.SpotifyId = ""
+	default:
+		auddData.SpotifyId = result.Spotify.ID
+	}
+
 	return auddData
 }
 
