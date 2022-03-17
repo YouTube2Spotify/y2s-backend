@@ -154,24 +154,24 @@ func downloadVideo(clientData *ClientData) (status string) {
 
 	video, err := client.GetVideo(videoId2)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	formats := video.Formats.WithAudioChannels()
 	stream, _, err := client.GetStream(video, &formats[0])
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	file, err := os.Create("video.mp4")
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 	defer file.Close()
 
 	_, err = io.Copy(file, stream)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	status = "download complete"
@@ -181,17 +181,15 @@ func downloadVideo(clientData *ClientData) (status string) {
 // Use AudD audio recognition to find song info from converted mp3
 func matchAudio(clientData *ClientData) (auddData SongData) {
 	fmt.Println("matching with AudD...")
-	// videoId := strings.Split(clientData.VideoUrl, "?v=")[1]
-	// videoId2 := strings.Split(videoId, "&")[0]
 
 	client := audd.NewClient(os.Getenv("AUDDIO_API_KEY"))
 	file, err := os.Open("audio.mp3")
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 	result, err := client.Recognize(file, "spotify", nil)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	auddData.Title = result.Title
@@ -211,7 +209,7 @@ func convertVideo() {
 		OutputPath("./audio.mp3").
 		Run()
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 }
 
@@ -227,15 +225,14 @@ func odesli(data *ClientData) (odesliData SongData) {
 
 	res, err := http.Get(params)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 	defer res.Body.Close()
 
 	body, _ := ioutil.ReadAll(res.Body)
 	var jsonData map[string]interface{}
-	err2 := json.Unmarshal([]byte(body), &jsonData)
-	if err2 != nil {
-		panic(err2)
+	if err2 := json.Unmarshal([]byte(body), &jsonData); err != nil {
+		log.Panic(err2)
 	}
 
 	if (jsonData["linksByPlatform"].(map[string]interface{}))["spotify"] != nil {
@@ -252,9 +249,8 @@ func odesli(data *ClientData) (odesliData SongData) {
 
 // Used to delete leftover mp3 and mp4 files
 func deleteFile(fileName string) {
-	err := os.Remove(fileName)
-	if err != nil { // if file doesn't exist, do nothing
-		return
+	if err := os.Remove(fileName); err != nil {
+		return // if file doesn't exist, do nothing
 	}
 }
 
@@ -274,8 +270,7 @@ func setupResponse(w *http.ResponseWriter, req *http.Request) {
 
 func main() {
 	// Load env file
-	err := godotenv.Load(".env")
-	if err != nil {
+	if err := godotenv.Load(".env"); err != nil {
 		log.Fatal("Error loading .env file")
 	}
 
