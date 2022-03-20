@@ -18,11 +18,6 @@ import (
 	fluentffmpeg "github.com/modfy/fluent-ffmpeg"
 )
 
-// Homepage json
-type HomePage struct {
-	Response string
-}
-
 // Store data being posted by Chrome extension
 type ClientData struct {
 	VideoUrl    string
@@ -50,8 +45,11 @@ func homePageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var data HomePage
-	data.Response = "Hello World!"
+	data := struct {
+		Message string
+	}{
+		Message: "Hello World!",
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(data)
@@ -101,8 +99,7 @@ func likeSongHandler(w http.ResponseWriter, r *http.Request) {
 		// exit function early if video failed to download
 		if !downloadStatus {
 			log.Println("failed to download video")
-			var errorMessage Error
-			errorMessage.Error = "Failed to find song info"
+			errorMessage := Error{Error: "Failed to find song info"}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(errorMessage)
 			return
@@ -117,8 +114,7 @@ func likeSongHandler(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(songInfo)
 		} else { // return json with error message if song info could not be found
 			log.Println("no match found with Odesli or AudD")
-			var errorMessage Error
-			errorMessage.Error = "Failed to find song info"
+			errorMessage := Error{Error: "Failed to find song info with both Odesli and AudD"}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(errorMessage)
 		}
@@ -179,7 +175,7 @@ func downloadVideo(clientData *ClientData) (status string) {
 }
 
 // Use AudD audio recognition to find song info from converted mp3
-func matchAudio(clientData *ClientData) (auddData SongData) {
+func matchAudio(clientData *ClientData) SongData {
 	log.Println("matching with AudD...")
 
 	client := audd.NewClient(os.Getenv("AUDDIO_API_KEY"))
@@ -192,8 +188,7 @@ func matchAudio(clientData *ClientData) (auddData SongData) {
 		log.Panic(err)
 	}
 
-	auddData.Title = result.Title
-	auddData.Artist = result.Artist
+	auddData := SongData{Title: result.Title, Artist: result.Artist}
 
 	// check if Spotify data exists. appears to sometimes not exist
 	switch spotifyId := result.Spotify; spotifyId {
@@ -244,7 +239,7 @@ func odesli(data *ClientData) (odesliData SongData) {
 
 	body, _ := ioutil.ReadAll(res.Body)
 	var jsonData map[string]interface{}
-	if err2 := json.Unmarshal([]byte(body), &jsonData); err != nil {
+	if err2 := json.Unmarshal(body, &jsonData); err != nil {
 		log.Panic(err2)
 	}
 
