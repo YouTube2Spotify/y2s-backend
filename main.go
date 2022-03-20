@@ -76,6 +76,11 @@ func likeSongHandler(w http.ResponseWriter, r *http.Request) {
 
 	if songInfo.SpotifyId != "" { // Use data from Odesli if data was found
 		likeSpotifyTrack(&chromeExtensionData, &songInfo)
+		likeStatus := likeSpotifyTrack(&chromeExtensionData, &songInfo)
+		if likeStatus != 200 {
+			errorHandler(&w, "Error liking song on Spotify", 500)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(songInfo)
 	} else { // Use AudD music recognition if music data not found with Odesli
@@ -106,17 +111,16 @@ func likeSongHandler(w http.ResponseWriter, r *http.Request) {
 		songInfo = matchAudio(&chromeExtensionData) // pass mp3 to audD api to perform music recognition
 
 		if songInfo.SpotifyId != "" {
-			likeSpotifyTrack(&chromeExtensionData, &songInfo)
+			likeStatus := likeSpotifyTrack(&chromeExtensionData, &songInfo)
+			if likeStatus != 200 {
+				errorHandler(&w, "Error liking song on Spotify", 500)
+				return
+			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(songInfo)
 		} else { // return json with error message if song info could not be found
 			log.Println("no match found with Odesli or AudD")
 			errorHandler(&w, "Failed to find song info with both Odesli and AudD", 404)
-
-			// log.Println("no match found with Odesli or AudD")
-			// errorMessage := Error{Error: "Failed to find song info with both Odesli and AudD"}
-			// w.Header().Set("Content-Type", "application/json")
-			// json.NewEncoder(w).Encode(errorMessage)
 		}
 	}
 }
