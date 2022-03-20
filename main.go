@@ -98,10 +98,7 @@ func likeSongHandler(w http.ResponseWriter, r *http.Request) {
 
 		// exit function early if video failed to download
 		if !downloadStatus {
-			log.Println("failed to download video")
-			errorMessage := Error{Error: "Failed to find song info"}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(errorMessage)
+			errorHandler(&w, "Failed to download video", 500)
 			return
 		}
 
@@ -114,9 +111,12 @@ func likeSongHandler(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(songInfo)
 		} else { // return json with error message if song info could not be found
 			log.Println("no match found with Odesli or AudD")
-			errorMessage := Error{Error: "Failed to find song info with both Odesli and AudD"}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(errorMessage)
+			errorHandler(&w, "Failed to find song info with both Odesli and AudD", 404)
+
+			// log.Println("no match found with Odesli or AudD")
+			// errorMessage := Error{Error: "Failed to find song info with both Odesli and AudD"}
+			// w.Header().Set("Content-Type", "application/json")
+			// json.NewEncoder(w).Encode(errorMessage)
 		}
 	}
 }
@@ -260,6 +260,13 @@ func deleteFile(fileName string) {
 	if err := os.Remove(fileName); err != nil {
 		return // if file doesn't exist, do nothing
 	}
+}
+
+func errorHandler(w *http.ResponseWriter, errMessage string, statusCode int) {
+	errorMessage := Error{Error: errMessage}
+	(*w).Header().Set("Content-Type", "application/json")
+	(*w).WriteHeader(statusCode)
+	json.NewEncoder(*w).Encode(errorMessage)
 }
 
 // Request handler
